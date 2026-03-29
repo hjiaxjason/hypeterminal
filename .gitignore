@@ -1,0 +1,9 @@
+.DS_Store
+Thumbs.db
+
+.vscode/
+
+Local.session.sql
+
+.env
+.env.local
