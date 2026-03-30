@@ -1,29 +1,37 @@
-const express = require('express');
-const { Pool } = require('pg');
-const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config()
 
-const app = express();
-const pool = new Pool({ connectionString: process.env.DATABASE_URL});
+const express = require('express')
+const cors = require('cors')
+
+const itemsRouter = require('./routes/items')
+const indexesRouter = require('./routes/indexes')
+const authRouter = require('./routes/auth')
+
+const app = express()
 
 app.use(cors())
 app.use(express.json())
 
 app.get('/', (req, res) => {
-  res.json({ status: 'ok'})
+  res.json({ status: 'ok', message: 'HypeTerminal API running' })
 })
 
-app.get('/health', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW()');
-    res.json({ status: 'ok', time: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-});
+app.use('/items', itemsRouter)
+app.use('/indexes', indexesRouter)
+app.use('/auth', authRouter)
 
-app.listen(process.env.PORT, () => {
-  console.log(`Server running on port ${process.env.PORT}`);
-});
+// 404 handler — catches any route not matched above
+app.use((req, res) => {
+  res.status(404).json({ error: `Route ${req.method} ${req.path} not found` })
+})
 
+// Global error handler — catches anything thrown without a try/catch
+app.use((err, req, res, next) => {
+  console.error(err)
+  res.status(500).json({ error: 'Internal server error' })
+})
+
+const PORT = process.env.PORT || 3000
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
+})

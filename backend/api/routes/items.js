@@ -1,34 +1,21 @@
 const express = require('express')
 const router = express.Router()
-const pool = require('../config/db')
+const supabase = require('../config/supabase')
 
 // GET /items — all items, with optional filters
 router.get('/', async (req, res) => {
   try {
     const { category, brand } = req.query
 
-    let query = 'SELECT * FROM items'
-    let params = []
-    let conditions = []
+    let query = supabase.from('items').select('*').order('name')
 
-    if (category) {
-      conditions.push(`category = $${params.length + 1}`)
-      params.push(category)
-    }
+    if (category) query = query.eq('category', category)
+    if (brand)    query = query.eq('brand', brand)
 
-    if (brand) {
-      conditions.push(`brand = $${params.length + 1}`)
-      params.push(brand)
-    }
+    const { data, error } = await query
 
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ')
-    }
-
-    query += ' ORDER BY name'
-
-    const { rows } = await pool.query(query, params)
-    res.json(rows)
+    if (error) throw error
+    res.json(data)
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })
@@ -39,12 +26,15 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const { rows } = await pool.query(
-      'SELECT * FROM items WHERE id = $1',
-      [id]
-    )
-    if (rows.length === 0) return res.status(404).json({ error: 'Not found' })
-    res.json(rows[0])
+
+    const { data, error } = await supabase
+      .from('items')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error) return res.status(404).json({ error: 'Not found' })
+    res.json(data)
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })
@@ -55,14 +45,18 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/prices', async (req, res) => {
   try {
     const { id } = req.params
-    const { rows } = await pool.query(
-      `SELECT * FROM price_history
-       WHERE sneaker_id = $1
-       ORDER BY recorded_at ASC`,
-      [id]
-    )
-    if (rows.length === 0) return res.status(404).json({ error: 'No price history found' })
-    res.json(rows)
+
+    const { data, error } = await supabase
+      .from('price_history')
+      .select('*')
+      .eq('item_id', id)        // was sneaker_id — bug fix
+      .order('recorded_at', { ascending: true })
+
+    if (error) throw error
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'No price history found' })
+    }
+    res.json(data)
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })
